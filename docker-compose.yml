@@ -1,8 +1,9 @@
-version: "2"
+version: "3"
 
 services:
   gitlab:
-    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    image: gitlab/gitlab-ce:12.0.0-ce.0
     restart: always
     networks:
       - traefik
@@ -12,7 +13,6 @@ services:
       - "80"
       - "5005"
     environment:
-      TZ: Asia/Hong_Kong
       GITLAB_OMNIBUS_CONFIG: |
         ## GitLab configuration settings
         ##! Check out the latest version of this file to know about the different
@@ -36,15 +36,15 @@ services:
         ## gitlab.yml configuration
         ##! Docs: https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/doc/settings/gitlab.yml.md
         ################################################################################
-        gitlab_rails['gitlab_ssh_host'] = 'ssh.host_example.com'
+        gitlab_rails['gitlab_ssh_host'] = 'ssh.gitlab.domain.com'
         gitlab_rails['time_zone'] = 'UTC'
 
 
         ### Email Settings
         gitlab_rails['gitlab_email_enabled'] = true
-        gitlab_rails['gitlab_email_from'] = 'example@example.com'
+        gitlab_rails['gitlab_email_from'] = 'example@domain.com'
         gitlab_rails['gitlab_email_display_name'] = 'Example'
-        gitlab_rails['gitlab_email_reply_to'] = 'noreply@example.com'
+        gitlab_rails['gitlab_email_reply_to'] = 'noreply@domain.com'
         gitlab_rails['gitlab_email_subject_suffix'] = ''
 
 
@@ -97,7 +97,7 @@ services:
         gitlab_rails['smtp_port'] = 465
         gitlab_rails['smtp_user_name'] = "smtp user"
         gitlab_rails['smtp_password'] = "smtp password"
-        gitlab_rails['smtp_domain'] = "example.com"
+        gitlab_rails['smtp_domain'] = "domain.com"
         gitlab_rails['smtp_authentication'] = "login"
         gitlab_rails['smtp_enable_starttls_auto'] = true
         gitlab_rails['smtp_tls'] = false
@@ -169,11 +169,11 @@ services:
         ##! Docs: https://docs.gitlab.com/ce/administration/container_registry.html
         ################################################################################
 
-        registry_external_url 'https://registry.gitlab.example.com'
+        registry_external_url 'https://registry.domain.com'
 
         ### Settings used by GitLab application
         gitlab_rails['registry_enabled'] = true
-        gitlab_rails['registry_host'] = "registry.gitlab.example.com"
+        gitlab_rails['registry_host'] = "registry.domain.com"
         gitlab_rails['registry_port'] = "5005"
         gitlab_rails['registry_path'] = "/var/opt/gitlab/gitlab-rails/shared/registry"
 
@@ -189,19 +189,28 @@ services:
         }
 
     volumes:
-      - /var/lib/docker/volumes/gitlab/config:/etc/gitlab
-      - /var/lib/docker/volumes/gitlab/logs:/var/log/gitlab
-      - /var/lib/docker/volumes/gitlab/data:/var/opt/gitlab
-      - /var/lib/docker/volumes/gitlab/mnt:/mnt
+      - config:/etc/gitlab
+      - logs:/var/log/gitlab
+      - data:/var/opt/gitlab
+      - mnt:/mnt
     labels:
-      - "traefik.docker.network=traefik"
+      # Dynamic configuration with Docker Labels
+      # Ref: https://docs.traefik.io/reference/dynamic-configuration/docker/
       - "traefik.enable=true"
-      - "traefik.frontend.rule=Host:gitlab.example.com"
-      - "traefik.basic.port=80"
-      - "traefik.basic.protocol=http"
-      - "traefik.registry.frontend.rule=Host:registry.example.com"
-      - "traefik.registry.protocol=http"
-      - "traefik.registry.port=5005"
+      - "traefik.http.routers.gitlab.entrypoints=web"
+      - "traefik.http.routers.gitlab.rule=Host(`gitlab.domain.com`)"
+      - "traefik.http.routers.gitlab.service=gitlab"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.http.routers.gitlab-registry.entrypoints=web"
+      - "traefik.http.routers.gitlab-registry.rule=Host(`registry.domain.com`)"
+      - "traefik.http.routers.gitlab-registry.service=gitlab-registry"
+      - "traefik.http.services.gitlab-registry.loadbalancer.server.port=80"
+
+volumes:
+  config: {}
+  logs: {}
+  data: {}
+  mnt: {}
 
 networks:
   traefik:
